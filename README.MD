@@ -2,7 +2,6 @@
 
 This repository demonstrates how to use Testcontainers with ScyllaDB in a Spring Boot application to run integration tests against a disposable ScyllaDB instance.
 
-File: `README.md`
 
 ## Overview
 
