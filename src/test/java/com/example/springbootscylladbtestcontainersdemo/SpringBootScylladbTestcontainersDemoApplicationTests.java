@@ -3,7 +3,6 @@ package com.example.springbootscylladbtestcontainersdemo;
 import com.datastax.oss.driver.api.core.CqlSession;
 import com.datastax.oss.driver.api.core.cql.ResultSet;
 import com.datastax.oss.driver.api.core.cql.SimpleStatement;
-import com.datastax.oss.driver.api.core.metadata.Metadata;
 import com.datastax.oss.driver.api.core.metadata.schema.KeyspaceMetadata;
 import com.datastax.oss.driver.api.core.metadata.schema.TableMetadata;
 import com.datastax.oss.driver.api.core.uuid.Uuids;
@@ -11,19 +10,17 @@ import com.datastax.oss.driver.api.querybuilder.QueryBuilder;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ContextConfiguration;
+import org.springframework.context.annotation.Import;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import java.time.LocalDateTime;
-import java.util.UUID;
-
-import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@ContextConfiguration(initializers = TestcontainersConfiguration.class)
 @SpringBootTest
 @Testcontainers
+@Import(TestcontainersConfiguration.class)
 class SpringBootScylladbTestcontainersDemoApplicationTests {
+
 
     @Autowired
     private CqlSession cqlSession;
@@ -42,5 +39,6 @@ class SpringBootScylladbTestcontainersDemoApplicationTests {
         ResultSet execute = cqlSession.execute(statement);
         assertTrue(execute.wasApplied());
     }
+
 
 }

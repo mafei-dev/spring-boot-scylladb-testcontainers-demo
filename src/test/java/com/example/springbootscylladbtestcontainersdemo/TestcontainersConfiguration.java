@@ -3,35 +3,47 @@ package com.example.springbootscylladbtestcontainersdemo;
 import com.github.dockerjava.api.model.ExposedPort;
 import com.github.dockerjava.api.model.PortBinding;
 import com.github.dockerjava.api.model.Ports;
-import org.springframework.boot.test.util.TestPropertyValues;
-import org.springframework.context.ApplicationContextInitializer;
-import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.test.context.DynamicPropertyRegistrar;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.scylladb.ScyllaDBContainer;
 
 import java.io.IOException;
+import java.util.Objects;
 
-class TestcontainersConfiguration implements ApplicationContextInitializer<ConfigurableApplicationContext> {
-
-    public static ScyllaDBContainer scyllaDB = new ScyllaDBContainer("scylladb/scylla:6.2")
+@TestConfiguration(proxyBeanMethods = false)
+class TestcontainersConfiguration {
+    static ScyllaDBContainer container = new ScyllaDBContainer("scylladb/scylla:6.2")
             .withReuse(true)
+            .withCommand("--smp", "2")
             .waitingFor(Wait.forListeningPort())
-            .withExposedPorts(19042)
+            .withExposedPorts( 9042,19042)
             .withCreateContainerCmdModifier(cmd -> {
-                cmd.getHostConfig().withPortBindings(
-                        new PortBinding(Ports.Binding.bindPort(29042), new ExposedPort(19042))
+                Objects.requireNonNull(cmd.getHostConfig()).withCpuCount(2L);
+                cmd.withPortBindings(
+                        new PortBinding(Ports.Binding.bindPort(9042), new ExposedPort(9042)),
+                        new PortBinding(Ports.Binding.bindPort(19042), new ExposedPort(19042))
                 );
             });
 
+    static {
+        System.setProperty("advanced.connection.advanced-shard-awareness.enabled", "true");
+    }
 
-    @Override
-    public void initialize(ConfigurableApplicationContext applicationContext) {
-        scyllaDB.start();
+    @Bean
+    public ScyllaDBContainer scyllaContainer() {
+        return container;
+    }
+
+
+    @Bean
+    public DynamicPropertyRegistrar keyspacePropertyRegistrar(ScyllaDBContainer container) {
         try {
-            scyllaDB.execInContainer("cqlsh", "-e",
+            container.execInContainer("cqlsh", "-e",
                     "CREATE KEYSPACE IF NOT EXISTS demo_key_space WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
 
-            scyllaDB.execInContainer("cqlsh", "-e",
+            container.execInContainer("cqlsh", "-e",
                     """
                                 CREATE TABLE IF NOT EXISTS demo_key_space.users (
                                 user_id UUID,
@@ -41,14 +53,13 @@ class TestcontainersConfiguration implements ApplicationContextInitializer<Confi
                             );
                             """);
         } catch (IOException | InterruptedException e) {
-            throw new RuntimeException(e);
+            System.err.println(e);
         }
-        TestPropertyValues.of(
-                "spring.cassandra.contact-points=" + scyllaDB.getHost(),
-                "spring.cassandra.port=" + scyllaDB.getFirstMappedPort(),
-                "spring.cassandra.local-datacenter=datacenter1",
-                "spring.cassandra.keyspace-name=demo_key_space"
-        ).applyTo(applicationContext.getEnvironment());
-
+        return (registry) -> {
+            registry.add("spring.cassandra.keyspace-name", () -> "demo_key_space");
+            registry.add("spring.cassandra.local-datacenter", () -> "datacenter1");
+            registry.add("spring.cassandra.contact-points", () -> container.getShardAwareContactPoint().getAddress());
+        };
     }
+
 }
